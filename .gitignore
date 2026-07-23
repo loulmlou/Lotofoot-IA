@@ -46,3 +46,9 @@ data/raw/football/*.csv
 
 # Docker
 docker-compose.override.yml
+
+# Claude Code
+.claude/
+
+# Trained model artifacts
+data/models/
