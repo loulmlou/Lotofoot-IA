@@ -229,6 +229,97 @@ def parse_html_grille(soup, grille_type: str, grille_id: int) -> dict | None:
     return data
 
 
+def _is_upcoming_grille(data: dict) -> bool:
+    """Détecte si une grille est 'à venir' : matchs présents, aucun résultat, pas de rapport."""
+    if not data or not data.get("matchs"):
+        return False
+    # Tous les résultats doivent être None (pas encore joués)
+    all_none = all(m.get("resultat") is None for m in data["matchs"])
+    # Pas de rapport = grille pas encore clôturée
+    no_rapport = data.get("rapport_rang1") is None
+    return all_none and no_rapport
+
+
+def _get_max_known_id(grille_type: str) -> int:
+    """Retourne le plus grand ID connu en base pour un type de grille, ou id_max_approx."""
+    type_info = LOTOFOOT_TYPES.get(grille_type, {})
+    fallback = type_info.get("id_max_approx", 100)
+
+    try:
+        session = SessionLocal()
+        type_code = type_info.get("code", grille_type)
+        result = session.query(GrilleLotoFoot.id).filter(
+            GrilleLotoFoot.type_grille == type_code
+        ).order_by(GrilleLotoFoot.id.desc()).first()
+        session.close()
+        if result:
+            return max(result[0], fallback)
+    except Exception:
+        pass
+    return fallback
+
+
+def fetch_upcoming_grilles(
+    grille_type: str = "loto-foot-7",
+    max_look_ahead: int = 30,
+    max_consecutive_fails: int = 10,
+    delay: float = 0.5,
+) -> list[dict]:
+    """Cherche les grilles à venir (non jouées) au-dessus du max ID connu.
+
+    Recherche en avant à partir du max ID connu en base (ou id_max_approx).
+    Retourne une liste de dicts sans stockage en DB :
+        [{numero, type, date, matchs: [{domicile, exterieur}]}, ...]
+
+    Args:
+        grille_type: Type de grille (ex: 'loto-foot-7').
+        max_look_ahead: Nombre max d'IDs à tester au-dessus du max connu.
+        max_consecutive_fails: Arrêt après N échecs consécutifs.
+        delay: Pause entre requêtes.
+
+    Returns:
+        Liste de grilles à venir.
+    """
+    start_id = _get_max_known_id(grille_type) + 1
+    upcoming = []
+    consecutive_fails = 0
+
+    for grille_id in range(start_id, start_id + max_look_ahead):
+        data = fetch_grille_html(grille_type, grille_id)
+
+        if data is None:
+            consecutive_fails += 1
+            if consecutive_fails >= max_consecutive_fails:
+                logger.debug(
+                    f"fetch_upcoming: {max_consecutive_fails} échecs consécutifs "
+                    f"pour {grille_type}, arrêt à l'ID {grille_id}"
+                )
+                break
+            time.sleep(delay * 0.3)
+            continue
+
+        consecutive_fails = 0
+
+        if _is_upcoming_grille(data):
+            upcoming.append({
+                "numero": data.get("numero", grille_id),
+                "type": data.get("type", LOTOFOOT_TYPES.get(grille_type, {}).get("code", grille_type)),
+                "date": data.get("date"),
+                "matchs": [
+                    {"domicile": m["domicile"], "exterieur": m["exterieur"]}
+                    for m in data["matchs"]
+                ],
+            })
+            logger.info(f"Grille à venir trouvée : {grille_type}/{grille_id}")
+        else:
+            logger.debug(f"Grille {grille_type}/{grille_id} déjà jouée, ignorée")
+
+        time.sleep(delay)
+
+    logger.info(f"fetch_upcoming {grille_type} : {len(upcoming)} grille(s) à venir trouvée(s)")
+    return upcoming
+
+
 def grille_exists(session, numero: int, type_grille: str) -> bool:
     """Vérifie si une grille existe déjà en base."""
     result = session.execute(
