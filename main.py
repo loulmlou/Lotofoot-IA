@@ -1,5 +1,7 @@
 """Point d'entrée principal de LotoFoot AI Analyst."""
 
+import sys
+
 from loguru import logger
 from database.connection import init_db
 
@@ -13,4 +15,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "serve":
+        import uvicorn
+        uvicorn.run("api.app:app", host="0.0.0.0", port=8000, reload=True)
+    elif len(sys.argv) > 1 and sys.argv[1] == "ui":
+        import subprocess
+        subprocess.run(["streamlit", "run", "frontend/app.py"])
+    else:
+        main()
