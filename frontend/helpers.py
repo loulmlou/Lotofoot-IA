@@ -63,23 +63,27 @@ def match_team_name(fdj_name: str, equipes) -> object | None:
         db_significant = db_words - noise_words
 
         # Si tous les mots significatifs du nom FDJ sont dans le nom DB
-        # (ex: "Marseille" → "Olympique de Marseille", "Paris" → "Paris Saint Germain")
+        # (ex: "Marseille" → "Olympique de Marseille", "Paris SG" → "Paris Saint Germain")
+        # C'est un signal fort : l'utilisateur cherche bien cette équipe.
         if fdj_significant and fdj_significant <= db_significant:
             score = 0.85
+        # Sens inverse (DB ⊆ FDJ) : exiger une couverture > 50%
+        # pour éviter "Inter" (DB) ⊂ "Inter Miami" (FDJ)
         elif db_significant and db_significant <= fdj_significant:
-            score = 0.85
+            ratio = len(db_significant) / len(fdj_significant)
+            score = 0.85 if ratio > 0.5 else 0.85 * ratio
         else:
             common = fdj_significant & db_significant
             base_score = SequenceMatcher(None, normalized_fdj, normalized_db).ratio()
 
             if common:
-                # Proportion de mots significatifs en commun par rapport au plus petit
-                overlap = len(common) / min(len(fdj_significant), len(db_significant), 1)
-                # Mais pénaliser si beaucoup de mots non communs
+                # Pénaliser si beaucoup de mots non communs
                 coverage = len(common) / max(len(fdj_significant | db_significant), 1)
                 score = base_score * 0.5 + coverage * 0.5
             else:
-                score = base_score
+                # Aucun mot significatif en commun : exiger un score très élevé
+                # pour éviter les faux positifs comme "Houston"→"Luton"
+                score = base_score * 0.7
 
         if score > best_score:
             best_score = score
