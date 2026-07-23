@@ -139,6 +139,24 @@ def test_match_team_name_accents():
     assert result.nom == "Nimes Olympique"
 
 
+def test_match_team_name_no_false_positive_city():
+    """'Orlando City' ne doit PAS matcher 'Man City' (mot commun 'city' trop court)."""
+    from frontend.helpers import match_team_name
+
+    equipes = _make_equipes("Man City", "Manchester United", "Liverpool")
+    result = match_team_name("Orlando City", equipes)
+    assert result is None
+
+
+def test_match_team_name_no_false_positive_nashville():
+    """'Nashville SC' ne doit PAS matcher 'Marseille'."""
+    from frontend.helpers import match_team_name
+
+    equipes = _make_equipes("Olympique de Marseille", "Paris Saint Germain", "Lyon")
+    result = match_team_name("Nashville SC", equipes)
+    assert result is None
+
+
 def test_match_team_name_no_match():
     """Aucune correspondance suffisante."""
     from frontend.helpers import match_team_name

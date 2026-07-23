@@ -38,12 +38,16 @@ def match_team_name(fdj_name: str, equipes) -> object | None:
         equipes: Liste d'objets Equipe (avec attribut .nom).
 
     Returns:
-        L'objet Equipe le plus proche, ou None si aucun score >= 0.5.
+        L'objet Equipe le plus proche, ou None si aucun score >= 0.65.
     """
     if not fdj_name or not equipes:
         return None
 
     normalized_fdj = _normalize_name(fdj_name)
+    noise_words = {"fc", "sc", "cf", "ac", "as", "us", "rc", "sg",
+                   "utd", "de", "du", "le", "la", "les", "of"}
+    fdj_words = set(normalized_fdj.split())
+    fdj_significant = fdj_words - noise_words
 
     best_match = None
     best_score = 0.0
@@ -55,17 +59,33 @@ def match_team_name(fdj_name: str, equipes) -> object | None:
         if normalized_fdj == normalized_db:
             return equipe
 
-        # Vérifier si l'un est contenu dans l'autre
-        if normalized_fdj in normalized_db or normalized_db in normalized_fdj:
+        db_words = set(normalized_db.split())
+        db_significant = db_words - noise_words
+
+        # Si tous les mots significatifs du nom FDJ sont dans le nom DB
+        # (ex: "Marseille" → "Olympique de Marseille", "Paris" → "Paris Saint Germain")
+        if fdj_significant and fdj_significant <= db_significant:
+            score = 0.85
+        elif db_significant and db_significant <= fdj_significant:
             score = 0.85
         else:
-            score = SequenceMatcher(None, normalized_fdj, normalized_db).ratio()
+            common = fdj_significant & db_significant
+            base_score = SequenceMatcher(None, normalized_fdj, normalized_db).ratio()
+
+            if common:
+                # Proportion de mots significatifs en commun par rapport au plus petit
+                overlap = len(common) / min(len(fdj_significant), len(db_significant), 1)
+                # Mais pénaliser si beaucoup de mots non communs
+                coverage = len(common) / max(len(fdj_significant | db_significant), 1)
+                score = base_score * 0.5 + coverage * 0.5
+            else:
+                score = base_score
 
         if score > best_score:
             best_score = score
             best_match = equipe
 
-    if best_score >= 0.5:
+    if best_score >= 0.65:
         return best_match
     return None
 
