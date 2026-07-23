@@ -3,9 +3,20 @@
 from itertools import product
 from functools import reduce
 
+from loguru import logger
+
+
+def _compute_grid_profile(resultats: str) -> str:
+    """Calcule le profil 1N2 d'une grille (ex: '1N21121' -> '4-1-2')."""
+    nb1 = resultats.count("1")
+    nb_n = resultats.count("N")
+    nb2 = resultats.count("2")
+    return f"{nb1}-{nb_n}-{nb2}"
+
 
 def optimize_grids(predictions: list, budget: int,
-                   strategy: str = "equilibree") -> list:
+                   strategy: str = "equilibree",
+                   grid_type: str = None) -> list:
     """Sélectionne le meilleur ensemble de grilles pour un budget donné.
 
     Stratégie prudente : peu de variantes, focus sur les favoris
@@ -17,6 +28,8 @@ def optimize_grids(predictions: list, budget: int,
                      prediction, confiance, probas
         budget: nombre max de grilles
         strategy: 'prudente', 'equilibree', 'audacieuse'
+        grid_type: type de grille (LF7, LF8, LF12, LF15) pour
+                   pondérer par les stats historiques de combinaisons 1N2
 
     Returns:
         liste de dicts {resultats, confiance, probabilite, matchs}
@@ -99,8 +112,29 @@ def optimize_grids(predictions: list, budget: int,
             "matchs": matchs_detail,
         })
 
-    # Trier par probabilité décroissante et limiter au budget
-    all_grids.sort(key=lambda g: g["probabilite"], reverse=True)
+    # Pondérer par la fréquence historique du profil 1N2
+    combinaisons_stats = {}
+    if grid_type:
+        try:
+            from collectors.pronosoft_scraper import fetch_combinaisons_stats
+            combinaisons_stats = fetch_combinaisons_stats(grid_type)
+        except Exception as e:
+            logger.warning(f"Impossible de charger les stats combinaisons: {e}")
+
+    if combinaisons_stats:
+        # Fréquence plancher pour les profils absents des stats
+        freq_plancher = min(combinaisons_stats.values()) * 0.1
+        for grid in all_grids:
+            profil = _compute_grid_profile(grid["resultats"])
+            profil_weight = combinaisons_stats.get(profil, freq_plancher)
+            grid["profil"] = profil
+            grid["profil_weight"] = profil_weight
+            grid["score"] = grid["probabilite"] * profil_weight
+
+        all_grids.sort(key=lambda g: g["score"], reverse=True)
+    else:
+        all_grids.sort(key=lambda g: g["probabilite"], reverse=True)
+
     return all_grids[:budget]
 
 

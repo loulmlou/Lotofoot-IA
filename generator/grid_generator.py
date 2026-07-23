@@ -53,7 +53,7 @@ class GridGenerator:
         if not predictions:
             return []
 
-        grids = optimize_grids(predictions, budget, self.strategy)
+        grids = optimize_grids(predictions, budget, self.strategy, grid_type)
         return self._rank_grids(grids)
 
     def _predict_all(self, matches: list, grid_type: str) -> list:

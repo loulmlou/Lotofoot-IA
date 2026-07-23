@@ -4,7 +4,7 @@ import pytest
 
 from models.predictor import Predictor
 from generator.grid_generator import GridGenerator
-from generator.optimizer import optimize_grids, compute_grid_probability, compute_grid_expected_value
+from generator.optimizer import optimize_grids, compute_grid_probability, compute_grid_expected_value, _compute_grid_profile
 
 
 # =====================================================
@@ -234,7 +234,12 @@ class TestStrategies:
             grids = gen.generate(sample_features_list, budget=5)
             assert len(grids) >= 1, f"Stratégie {strategy} n'a produit aucune grille"
 
-    def test_all_strategies_include_base_grid(self, sample_features_list):
+    def test_all_strategies_include_base_grid(self, sample_features_list, monkeypatch):
+        # Désactiver la pondération par profil pour ce test (comportement pré-pondération)
+        monkeypatch.setattr(
+            "collectors.pronosoft_scraper.fetch_combinaisons_stats",
+            lambda gt: {},
+        )
         for strategy in ["prudente", "equilibree", "audacieuse"]:
             predictor = Predictor(model_path="/nonexistent/path.joblib", strategy=strategy)
             gen = GridGenerator(predictor=predictor, strategy=strategy)
@@ -242,7 +247,7 @@ class TestStrategies:
             base = gen._generate_base_grid(predictions)
             grids = gen.generate(sample_features_list, budget=10)
 
-            # La grille de base (favoris) devrait toujours être présente
+            # Sans pondération profil, la grille de base (favoris) est toujours présente
             base_found = any(g["resultats"] == base["resultats"] for g in grids)
             assert base_found, f"Grille de base absente avec stratégie {strategy}"
 
@@ -270,3 +275,85 @@ class TestExpectedValue:
         ev = compute_grid_expected_value(grid, rapport_moyen=10.0)
         # prob ≈ 0.33^3 ≈ 0.036, ev ≈ 0.036 * 10 - 1 ≈ -0.64
         assert ev < 0
+
+
+# =====================================================
+# Tests de _compute_grid_profile
+# =====================================================
+
+class TestComputeGridProfile:
+    def test_balanced_profile(self):
+        assert _compute_grid_profile("1N21N21") == "3-2-2"
+
+    def test_all_ones(self):
+        assert _compute_grid_profile("1111111") == "7-0-0"
+
+    def test_all_draws(self):
+        assert _compute_grid_profile("NNNNNNN") == "0-7-0"
+
+    def test_all_twos(self):
+        assert _compute_grid_profile("2222222") == "0-0-7"
+
+    def test_mixed(self):
+        assert _compute_grid_profile("1N2") == "1-1-1"
+
+
+# =====================================================
+# Tests optimize_grids avec grid_type (compatibilité)
+# =====================================================
+
+class TestOptimizeGridsWithGridType:
+    def test_without_grid_type_still_works(self):
+        """optimize_grids sans grid_type doit fonctionner comme avant."""
+        predictions = [
+            {"prediction": "1", "confiance": 0.6,
+             "prob_1": 0.6, "prob_n": 0.2, "prob_2": 0.2,
+             "probas": {"1": 0.6, "N": 0.2, "2": 0.2}},
+            {"prediction": "1", "confiance": 0.5,
+             "prob_1": 0.5, "prob_n": 0.3, "prob_2": 0.2,
+             "probas": {"1": 0.5, "N": 0.3, "2": 0.2}},
+            {"prediction": "2", "confiance": 0.55,
+             "prob_1": 0.2, "prob_n": 0.25, "prob_2": 0.55,
+             "probas": {"1": 0.2, "N": 0.25, "2": 0.55}},
+        ]
+        grids = optimize_grids(predictions, budget=5)
+        assert len(grids) >= 1
+        for g in grids:
+            assert "resultats" in g
+            assert "probabilite" in g
+
+    def test_with_grid_type_none(self):
+        """grid_type=None ne casse pas le comportement."""
+        predictions = [
+            {"prediction": "1", "confiance": 0.6,
+             "prob_1": 0.6, "prob_n": 0.2, "prob_2": 0.2,
+             "probas": {"1": 0.6, "N": 0.2, "2": 0.2}},
+        ]
+        grids = optimize_grids(predictions, budget=3, grid_type=None)
+        assert len(grids) >= 1
+
+    def test_with_grid_type_adds_profil_fields(self, monkeypatch):
+        """Quand les stats combinaisons sont disponibles, les champs profil sont ajoutés."""
+        mock_stats = {"2-0-1": 0.3, "1-1-1": 0.5, "3-0-0": 0.1, "0-0-3": 0.1}
+        monkeypatch.setattr(
+            "collectors.pronosoft_scraper.fetch_combinaisons_stats",
+            lambda gt: mock_stats,
+        )
+
+        predictions = [
+            {"prediction": "1", "confiance": 0.6,
+             "prob_1": 0.6, "prob_n": 0.2, "prob_2": 0.2,
+             "probas": {"1": 0.6, "N": 0.2, "2": 0.2}},
+            {"prediction": "N", "confiance": 0.4,
+             "prob_1": 0.3, "prob_n": 0.4, "prob_2": 0.3,
+             "probas": {"1": 0.3, "N": 0.4, "2": 0.3}},
+            {"prediction": "2", "confiance": 0.55,
+             "prob_1": 0.2, "prob_n": 0.25, "prob_2": 0.55,
+             "probas": {"1": 0.2, "N": 0.25, "2": 0.55}},
+        ]
+        grids = optimize_grids(predictions, budget=10, grid_type="LF7")
+        assert len(grids) >= 1
+        for g in grids:
+            assert "profil" in g
+            assert "profil_weight" in g
+            assert "score" in g

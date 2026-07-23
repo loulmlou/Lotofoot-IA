@@ -19,7 +19,7 @@ from models.predictor import Predictor
 from generator.grid_generator import GridGenerator
 from analysis.grid_analysis import get_distribution_by_type
 from frontend.helpers import RESULT_COLORS, GRID_TYPE_CODES, color_result, format_results_html, match_team_name
-from collectors.lotofoot_scraper import fetch_upcoming_grilles
+from collectors.pronosoft_scraper import fetch_upcoming_grilles_pronosoft
 
 
 def get_equipes(session):
@@ -28,8 +28,13 @@ def get_equipes(session):
 
 
 def get_competitions(session):
-    """Récupère la liste des compétitions."""
-    return session.query(Competition).order_by(Competition.nom).all()
+    """Récupère la liste des compétitions, dédoublonnées par nom (saison la plus récente)."""
+    all_comps = session.query(Competition).order_by(Competition.nom, Competition.saison.desc()).all()
+    seen = {}
+    for c in all_comps:
+        if c.nom not in seen:
+            seen[c.nom] = c
+    return list(seen.values())
 
 
 # ---------------------------------------------------------------------------
@@ -98,13 +103,17 @@ if page == "Générateur de grilles":
     if mode == "Grille à venir (FDJ)":
         # Bouton de recherche
         if st.button("Chercher les grilles à venir", type="secondary"):
-            with st.spinner("Recherche des grilles à venir sur le site FDJ..."):
-                found = fetch_upcoming_grilles(grille_type=grid_type_key)
-            st.session_state["upcoming_grilles"] = found
-            if not found:
-                st.warning("Aucune grille à venir trouvée pour ce type.")
+            with st.spinner("Recherche des grilles à venir sur Pronosoft..."):
+                all_grilles = fetch_upcoming_grilles_pronosoft()
+            st.session_state["all_upcoming_grilles"] = all_grilles
+            if not all_grilles:
+                st.warning("Aucune grille à venir trouvée.")
 
-        upcoming = st.session_state.get("upcoming_grilles", [])
+        all_upcoming = st.session_state.get("all_upcoming_grilles", [])
+        upcoming = [g for g in all_upcoming if g["type"] == grid_type]
+        if all_upcoming and not upcoming:
+            st.info(f"Aucune grille {grid_type} trouvée. Types disponibles : "
+                    f"{', '.join(sorted(set(g['type'] for g in all_upcoming)))}")
 
         if upcoming:
             # Sélection de la grille
