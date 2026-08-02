@@ -6,7 +6,7 @@ depuis https://www.pronosoft.com/fr/lotofoot/prochaines-grilles.htm
 
 import re
 import requests
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from loguru import logger
 
 
@@ -174,7 +174,16 @@ def fetch_upcoming_grilles_pronosoft(timeout: int = 15) -> list[dict]:
     try:
         response = requests.get(PRONOSOFT_URL, headers=HEADERS, timeout=timeout)
         response.raise_for_status()
-        return parse_pronosoft_html(response.text)
+        grilles = parse_pronosoft_html(response.text)
+        # Filtrer les grilles passées : ne garder que celles d'aujourd'hui ou futures
+        today = date.today()
+        filtered = [g for g in grilles if g.get("date") is None or g["date"] >= today]
+        if len(filtered) < len(grilles):
+            logger.info(
+                f"Grilles filtrées : {len(grilles)} -> {len(filtered)} "
+                f"(supprimé {len(grilles) - len(filtered)} grilles passées)"
+            )
+        return filtered
     except requests.RequestException as e:
         logger.error(f"Erreur lors de la récupération Pronosoft : {e}")
         return []
@@ -266,6 +275,59 @@ def fetch_combinaisons_stats(grid_type: str) -> dict[str, float]:
     stats = {k: v / total for k, v in counts.items()}
     _combinaisons_cache[grid_type] = stats
     return stats
+
+
+def fetch_grid_repartition(grid_type: str, grid_number: int,
+                           year: int = 2026) -> dict:
+    """Scrape la page répartition pour une grille à venir ou passée.
+
+    Réutilise parse_repartition_html de pronosoft_history.
+
+    Args:
+        grid_type: "LF7", "LF8", "LF12", "LF15"
+        grid_number: numéro de la grille
+        year: année de la grille
+
+    Returns:
+        dict avec 'matches', 'difficulty', 'nb_pronostics' et métriques dérivées
+    """
+    from collectors.pronosoft_history import (
+        parse_repartition_html, compute_grid_metrics, _slugs_for_type,
+    )
+
+    _slug, type_slug, _nb = _slugs_for_type(grid_type)
+
+    url = (
+        f"https://www.pronosoft.com/fr/lotosports/repartition/{type_slug}/"
+        f"{year}-grille-{grid_number}/"
+    )
+
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"Erreur fetch répartition {grid_type} n°{grid_number}: {e}")
+        return {"matches": [], "difficulty": None, "nb_pronostics": None}
+
+    data = parse_repartition_html(response.text)
+
+    # Fallback: completer les cotes manquantes via The Odds API
+    matches = data.get("matches", [])
+    has_missing = any(
+        not m.get("cote_1") or not m.get("cote_n") or not m.get("cote_2")
+        for m in matches
+    )
+    if has_missing and matches:
+        try:
+            from collectors.odds_api import fetch_odds_for_matches
+            data["matches"] = fetch_odds_for_matches(matches)
+        except Exception as e:
+            logger.warning(f"Fallback The Odds API echoue: {e}")
+
+    # Compute derived metrics
+    metrics = compute_grid_metrics({"matches": data.get("matches", [])})
+    data.update(metrics)
+    return data
 
 
 if __name__ == "__main__":

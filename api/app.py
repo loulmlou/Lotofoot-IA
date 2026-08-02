@@ -9,13 +9,12 @@ from api.schemas import (
     GridGenerateRequest, GenerateResponse, GridResponse,
 )
 from api.deps import get_predictor, get_db
-from models.predictor import Predictor
+from models.odds_predictor import OddsPredictor
 from generator.grid_generator import GridGenerator
 from database.models import GrilleLotoFoot, StatistiqueGrille
-from analysis.grid_analysis import get_distribution_by_type
 
 
-app = FastAPI(title="LotoFoot IA", version="1.0.0")
+app = FastAPI(title="LotoFoot IA", version="2.0.0")
 
 
 @app.get("/api/health")
@@ -27,23 +26,20 @@ def health_check():
 @app.post("/api/predict", response_model=PredictionResponse)
 def predict_match(
     match: MatchInput,
-    predictor: Predictor = Depends(get_predictor),
-    session: Session = Depends(get_db),
+    predictor: OddsPredictor = Depends(get_predictor),
 ):
-    """Prédire un match à partir des IDs des équipes."""
-    result = predictor.predict_from_ids(
-        equipe_dom_id=match.equipe_dom_id,
-        equipe_ext_id=match.equipe_ext_id,
-        competition_id=match.competition_id,
-        date=match.date,
-        session=session,
-    )
+    """Prédire un match à partir des cotes."""
+    match_data = {
+        "cote_1": getattr(match, "cote_1", 0),
+        "cote_n": getattr(match, "cote_n", 0),
+        "cote_2": getattr(match, "cote_2", 0),
+        "pct_1": getattr(match, "pct_1", 0),
+        "pct_n": getattr(match, "pct_n", 0),
+        "pct_2": getattr(match, "pct_2", 0),
+        "prono_cyborg": getattr(match, "prono_cyborg", ""),
+    }
 
-    if result is None:
-        return PredictionResponse(
-            prob_1=1 / 3, prob_n=1 / 3, prob_2=1 / 3,
-            prediction="1", confiance=0.0,
-        )
+    result = predictor.predict_match(match_data)
 
     return PredictionResponse(
         prob_1=result["prob_1"],
@@ -57,33 +53,24 @@ def predict_match(
 @app.post("/api/predict/batch")
 def predict_batch(
     request: BatchPredictRequest,
-    predictor: Predictor = Depends(get_predictor),
-    session: Session = Depends(get_db),
+    predictor: OddsPredictor = Depends(get_predictor),
 ):
     """Prédire plusieurs matchs."""
     results = []
     for match in request.matches:
-        result = predictor.predict_from_ids(
-            equipe_dom_id=match.equipe_dom_id,
-            equipe_ext_id=match.equipe_ext_id,
-            competition_id=match.competition_id,
-            date=match.date,
-            session=session,
-        )
-
-        if result is None:
-            results.append({
-                "prob_1": 1 / 3, "prob_n": 1 / 3, "prob_2": 1 / 3,
-                "prediction": "1", "confiance": 0.0,
-            })
-        else:
-            results.append({
-                "prob_1": result["prob_1"],
-                "prob_n": result["prob_n"],
-                "prob_2": result["prob_2"],
-                "prediction": result["prediction"],
-                "confiance": result["confiance"],
-            })
+        match_data = {
+            "cote_1": getattr(match, "cote_1", 0),
+            "cote_n": getattr(match, "cote_n", 0),
+            "cote_2": getattr(match, "cote_2", 0),
+        }
+        result = predictor.predict_match(match_data)
+        results.append({
+            "prob_1": result["prob_1"],
+            "prob_n": result["prob_n"],
+            "prob_2": result["prob_2"],
+            "prediction": result["prediction"],
+            "confiance": result["confiance"],
+        })
 
     return results
 
@@ -91,42 +78,29 @@ def predict_batch(
 @app.post("/api/grilles/generate", response_model=GenerateResponse)
 def generate_grids(
     request: GridGenerateRequest,
-    predictor: Predictor = Depends(get_predictor),
-    session: Session = Depends(get_db),
+    predictor: OddsPredictor = Depends(get_predictor),
 ):
     """Générer des grilles optimisées."""
-    # Construire les features pour chaque match
-    match_features = []
+    matches = []
     for match in request.matches:
-        result = predictor.predict_from_ids(
-            equipe_dom_id=match.equipe_dom_id,
-            equipe_ext_id=match.equipe_ext_id,
-            competition_id=match.competition_id,
-            date=match.date,
-            session=session,
-        )
-        if result:
-            # Utiliser le résultat de predict_from_ids comme features
-            match_features.append({
-                "prob_1": result["prob_1"],
-                "prob_n": result["prob_n"],
-                "prob_2": result["prob_2"],
-                "prediction": result["prediction"],
-                "confiance": result["confiance"],
-            })
-        else:
-            match_features.append({
-                "prob_1": 1 / 3, "prob_n": 1 / 3, "prob_2": 1 / 3,
-            })
+        matches.append({
+            "cote_1": getattr(match, "cote_1", 0),
+            "cote_n": getattr(match, "cote_n", 0),
+            "cote_2": getattr(match, "cote_2", 0),
+            "pct_1": getattr(match, "pct_1", 0),
+            "pct_n": getattr(match, "pct_n", 0),
+            "pct_2": getattr(match, "pct_2", 0),
+            "prono_cyborg": getattr(match, "prono_cyborg", ""),
+        })
 
+    grid_data = {"matches": matches}
     generator = GridGenerator(predictor=predictor, strategy=request.strategy)
     grilles = generator.generate(
-        match_features,
+        grid_data,
         grid_type=request.grid_type,
         budget=request.budget,
     )
 
-    # Calculer les stats
     if grilles:
         confiance_moyenne = sum(g["confiance"] for g in grilles) / len(grilles)
     else:
@@ -158,7 +132,6 @@ def grilles_history(
 
     results = []
     for g in grilles:
-        # Chercher les stats associées
         stat = session.execute(
             select(StatistiqueGrille)
             .where(StatistiqueGrille.grille_id == g.id)
@@ -191,4 +164,8 @@ def grilles_history(
 @app.get("/api/stats/distribution")
 def stats_distribution():
     """Distribution 1/N/2 par type de grille."""
-    return get_distribution_by_type()
+    try:
+        from analysis.grid_analysis import get_distribution_by_type
+        return get_distribution_by_type()
+    except Exception:
+        return {}

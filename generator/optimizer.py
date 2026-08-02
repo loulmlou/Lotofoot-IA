@@ -14,9 +14,49 @@ def _compute_grid_profile(resultats: str) -> str:
     return f"{nb1}-{nb_n}-{nb2}"
 
 
+def _select_diverse_grids(grids: list, budget: int) -> list:
+    """Selectionne les grilles en diversifiant les profils 1N2.
+
+    Prend la meilleure grille de chaque profil distinct, puis complete
+    avec les meilleures restantes si le budget le permet.
+    Cela evite de soumettre 5 grilles identiques genre 5-1-1, 5-1-1, 5-1-1...
+
+    Args:
+        grids: liste de grilles triees par score decroissant
+        budget: nombre de grilles a selectionner
+
+    Returns:
+        liste de grilles selectionnees (au plus budget)
+    """
+    if len(grids) <= budget:
+        return grids
+
+    selected = []
+    seen_profiles = set()
+
+    # Phase 1 : une grille par profil distinct (dans l'ordre du score)
+    for g in grids:
+        profil = g.get("profil") or _compute_grid_profile(g["resultats"])
+        if profil not in seen_profiles:
+            selected.append(g)
+            seen_profiles.add(profil)
+            if len(selected) >= budget:
+                return selected
+
+    # Phase 2 : completer avec les meilleures grilles restantes
+    for g in grids:
+        if g not in selected:
+            selected.append(g)
+            if len(selected) >= budget:
+                break
+
+    return selected
+
+
 def optimize_grids(predictions: list, budget: int,
                    strategy: str = "equilibree",
-                   grid_type: str = None) -> list:
+                   grid_type: str = None,
+                   grid_metrics: dict = None) -> list:
     """Sélectionne le meilleur ensemble de grilles pour un budget donné.
 
     Stratégie prudente : peu de variantes, focus sur les favoris
@@ -30,6 +70,8 @@ def optimize_grids(predictions: list, budget: int,
         strategy: 'prudente', 'equilibree', 'audacieuse'
         grid_type: type de grille (LF7, LF8, LF12, LF15) pour
                    pondérer par les stats historiques de combinaisons 1N2
+        grid_metrics: métriques de la grille (difficulty, moyenne_cote_fav)
+                      pour ajuster le nombre de matchs variés
 
     Returns:
         liste de dicts {resultats, confiance, probabilite, matchs}
@@ -50,6 +92,39 @@ def optimize_grids(predictions: list, budget: int,
     else:  # equilibree
         k = min(3, n_matchs)
 
+    # Ajuster k selon les indicateurs de la grille
+    if grid_metrics:
+        difficulty = grid_metrics.get("difficulty")
+        inv_spread = grid_metrics.get("inv_spread_sum")
+        std_fav = grid_metrics.get("std_cote_fav")
+        nb_serres = grid_metrics.get("nb_matchs_serres", 0)
+
+        # inv_spread_sum < 1.98 => grille "facile" (1 surprise en moy)
+        # inv_spread_sum > 2.5 => grille "difficile" (3 surprises en moy)
+        if inv_spread is not None:
+            if inv_spread < 2.0 and strategy != "audacieuse":
+                k = max(k - 1, 1)  # Peu de surprises attendues
+            elif inv_spread > 3.0 and strategy != "prudente":
+                k = min(k + 1, n_matchs)  # Beaucoup de surprises attendues
+
+        # std_cote_fav < 0.26 => cotes homogenes, peu de surprises
+        elif std_fav is not None:
+            if std_fav < 0.26 and strategy != "audacieuse":
+                k = max(k - 1, 1)
+            elif std_fav > 0.45 and strategy != "prudente":
+                k = min(k + 1, n_matchs)
+
+        # Fallback sur la difficulte Pronosoft
+        elif difficulty is not None:
+            if difficulty > 8.0 and strategy != "prudente":
+                k = min(k + 1, n_matchs)
+            elif difficulty < 4.0 and strategy != "audacieuse":
+                k = max(k - 1, 1)
+
+        # Si beaucoup de matchs serres, augmenter la couverture
+        if nb_serres and nb_serres >= 3:
+            k = min(k + 1, n_matchs)
+
     vary_indices = sorted_indices[:k]
 
     # Pour chaque match variable, les résultats possibles
@@ -67,7 +142,8 @@ def optimize_grids(predictions: list, budget: int,
             options = [r for r, _ in sorted_results]
         else:
             # Favori + 2e choix, parfois le 3e si la confiance est basse
-            if pred["confiance"] < 0.10:
+            # Seuil releve a 0.15 pour inclure plus de "N" sur les matchs intermediaires
+            if pred["confiance"] < 0.15:
                 options = [r for r, _ in sorted_results]
             else:
                 options = [r for r, _ in sorted_results[:2]]
@@ -135,7 +211,11 @@ def optimize_grids(predictions: list, budget: int,
     else:
         all_grids.sort(key=lambda g: g["probabilite"], reverse=True)
 
-    return all_grids[:budget]
+    # --- Diversification des profils 1N2 ---
+    # Eviter de soumettre N grilles avec le meme profil.
+    # Selectionner le budget en favorisant la diversite des profils.
+    selected = _select_diverse_grids(all_grids, budget)
+    return selected
 
 
 def compute_grid_probability(predictions_or_grid: list,

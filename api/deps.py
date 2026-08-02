@@ -1,17 +1,17 @@
 """Dépendances FastAPI (session DB, predictor singleton)."""
 
-from models.predictor import Predictor
+from models.odds_predictor import OddsPredictor
 from database.connection import SessionLocal
 
 
-predictor_instance: Predictor = None
+predictor_instance: OddsPredictor = None
 
 
-def get_predictor() -> Predictor:
-    """Singleton Predictor chargé au démarrage."""
+def get_predictor() -> OddsPredictor:
+    """Singleton OddsPredictor chargé au démarrage."""
     global predictor_instance
     if predictor_instance is None:
-        predictor_instance = Predictor()
+        predictor_instance = OddsPredictor()
     return predictor_instance
 
 

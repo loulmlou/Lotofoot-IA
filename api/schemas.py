@@ -4,10 +4,15 @@ from pydantic import BaseModel, Field
 
 
 class MatchInput(BaseModel):
-    equipe_dom_id: int
-    equipe_ext_id: int
-    competition_id: int
-    date: str
+    cote_1: float = 0.0
+    cote_n: float = 0.0
+    cote_2: float = 0.0
+    pct_1: float = 0.0
+    pct_n: float = 0.0
+    pct_2: float = 0.0
+    prono_cyborg: str = ""
+    home: str = ""
+    away: str = ""
 
 
 class PredictionResponse(BaseModel):

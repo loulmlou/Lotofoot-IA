@@ -1,4 +1,4 @@
-"""Tests pour le module api (Phase 4) — API REST FastAPI."""
+"""Tests pour le module api — API REST FastAPI (basée cotes)."""
 
 from unittest.mock import patch, MagicMock
 
@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from api.app import app
 from api.deps import get_predictor, get_db
-from models.predictor import Predictor
+from models.odds_predictor import OddsPredictor
 
 
 # =====================================================
@@ -16,15 +16,14 @@ from models.predictor import Predictor
 
 @pytest.fixture
 def mock_predictor():
-    """Predictor sans modèle ML pour les tests."""
-    return Predictor(model_path="/nonexistent/path.joblib", strategy="equilibree")
+    """OddsPredictor pour les tests."""
+    return OddsPredictor(strategy="equilibree")
 
 
 @pytest.fixture
 def mock_session():
     """Session DB mockée qui ne se connecte pas à la vraie base."""
     session = MagicMock()
-    # Pour les requêtes select, retourner des résultats vides
     session.execute.return_value.scalars.return_value.all.return_value = []
     session.execute.return_value.scalar.return_value = None
     return session
@@ -68,32 +67,17 @@ class TestHealthCheck:
 # =====================================================
 
 class TestPredict:
-    def test_predict_returns_200(self, client, mock_predictor, mock_session):
-        # Mock predict_from_ids pour retourner un résultat valide
-        mock_predictor.predict_from_ids = MagicMock(return_value={
-            "prob_1": 0.50, "prob_n": 0.25, "prob_2": 0.25,
-            "prediction": "1", "confiance": 0.25,
-        })
-
+    def test_predict_returns_200(self, client):
         response = client.post("/api/predict", json={
-            "equipe_dom_id": 1,
-            "equipe_ext_id": 2,
-            "competition_id": 1,
-            "date": "2024-01-15",
+            "cote_1": 1.50, "cote_n": 4.00, "cote_2": 6.00,
         })
         assert response.status_code == 200
 
-    def test_predict_response_structure(self, client, mock_predictor):
-        mock_predictor.predict_from_ids = MagicMock(return_value={
-            "prob_1": 0.50, "prob_n": 0.25, "prob_2": 0.25,
-            "prediction": "1", "confiance": 0.25,
-        })
-
+    def test_predict_response_structure(self, client):
         response = client.post("/api/predict", json={
-            "equipe_dom_id": 1,
-            "equipe_ext_id": 2,
-            "competition_id": 1,
-            "date": "2024-01-15",
+            "cote_1": 1.50, "cote_n": 4.00, "cote_2": 6.00,
+            "pct_1": 65, "pct_n": 20, "pct_2": 15,
+            "prono_cyborg": "1",
         })
 
         data = response.json()
@@ -104,26 +88,17 @@ class TestPredict:
         assert "confiance" in data
         assert data["prediction"] in ["1", "N", "2"]
 
-    def test_predict_fallback_when_none(self, client, mock_predictor):
-        mock_predictor.predict_from_ids = MagicMock(return_value=None)
-
+    def test_predict_strong_favorite(self, client):
         response = client.post("/api/predict", json={
-            "equipe_dom_id": 1,
-            "equipe_ext_id": 2,
-            "competition_id": 1,
-            "date": "2024-01-15",
+            "cote_1": 1.10, "cote_n": 8.00, "cote_2": 15.00,
         })
-
-        assert response.status_code == 200
         data = response.json()
         assert data["prediction"] == "1"
-        assert data["confiance"] == 0.0
+        assert data["prob_1"] > 0.5
 
-    def test_predict_invalid_body_returns_422(self, client):
-        response = client.post("/api/predict", json={
-            "equipe_dom_id": "not_a_number",
-        })
-        assert response.status_code == 422
+    def test_predict_empty_body(self, client):
+        response = client.post("/api/predict", json={})
+        assert response.status_code == 200
 
 
 # =====================================================
@@ -131,16 +106,11 @@ class TestPredict:
 # =====================================================
 
 class TestPredictBatch:
-    def test_batch_returns_200(self, client, mock_predictor):
-        mock_predictor.predict_from_ids = MagicMock(return_value={
-            "prob_1": 0.50, "prob_n": 0.25, "prob_2": 0.25,
-            "prediction": "1", "confiance": 0.25,
-        })
-
+    def test_batch_returns_200(self, client):
         response = client.post("/api/predict/batch", json={
             "matches": [
-                {"equipe_dom_id": 1, "equipe_ext_id": 2, "competition_id": 1, "date": "2024-01-15"},
-                {"equipe_dom_id": 3, "equipe_ext_id": 4, "competition_id": 1, "date": "2024-01-15"},
+                {"cote_1": 1.50, "cote_n": 4.00, "cote_2": 6.00},
+                {"cote_1": 2.00, "cote_n": 3.50, "cote_2": 3.50},
             ]
         })
         assert response.status_code == 200
@@ -153,16 +123,10 @@ class TestPredictBatch:
 # =====================================================
 
 class TestGrillesGenerate:
-    def test_generate_returns_200(self, client, mock_predictor):
-        mock_predictor.predict_from_ids = MagicMock(return_value={
-            "prob_1": 0.50, "prob_n": 0.25, "prob_2": 0.25,
-            "prediction": "1", "confiance": 0.25,
-            "detail_scores": {}, "filtre": True,
-        })
-
+    def test_generate_returns_200(self, client):
         matches = [
-            {"equipe_dom_id": i, "equipe_ext_id": i + 10, "competition_id": 1, "date": "2024-01-15"}
-            for i in range(1, 8)
+            {"cote_1": 1.50, "cote_n": 4.00, "cote_2": 6.00}
+            for _ in range(7)
         ]
 
         response = client.post("/api/grilles/generate", json={
@@ -173,16 +137,10 @@ class TestGrillesGenerate:
         })
         assert response.status_code == 200
 
-    def test_generate_response_structure(self, client, mock_predictor):
-        mock_predictor.predict_from_ids = MagicMock(return_value={
-            "prob_1": 0.50, "prob_n": 0.25, "prob_2": 0.25,
-            "prediction": "1", "confiance": 0.25,
-            "detail_scores": {}, "filtre": True,
-        })
-
+    def test_generate_response_structure(self, client):
         matches = [
-            {"equipe_dom_id": i, "equipe_ext_id": i + 10, "competition_id": 1, "date": "2024-01-15"}
-            for i in range(1, 8)
+            {"cote_1": 1.50 + i * 0.2, "cote_n": 3.50, "cote_2": 4.00 + i * 0.3}
+            for i in range(7)
         ]
 
         response = client.post("/api/grilles/generate", json={
@@ -205,17 +163,10 @@ class TestGrillesGenerate:
             assert "probabilite" in g
             assert "matchs" in g
 
-    def test_generate_invalid_strategy(self, client, mock_predictor):
-        # Stratégie inconnue ne cause pas d'erreur (fallback equilibree behavior)
-        mock_predictor.predict_from_ids = MagicMock(return_value={
-            "prob_1": 0.50, "prob_n": 0.25, "prob_2": 0.25,
-            "prediction": "1", "confiance": 0.25,
-            "detail_scores": {}, "filtre": True,
-        })
-
+    def test_generate_invalid_strategy(self, client):
         matches = [
-            {"equipe_dom_id": i, "equipe_ext_id": i + 10, "competition_id": 1, "date": "2024-01-15"}
-            for i in range(1, 8)
+            {"cote_1": 1.50, "cote_n": 4.00, "cote_2": 6.00}
+            for _ in range(7)
         ]
 
         response = client.post("/api/grilles/generate", json={
@@ -255,11 +206,8 @@ class TestGrillesHistory:
 
 class TestStatsDistribution:
     def test_distribution_returns_200(self, client):
-        with patch("api.app.get_distribution_by_type", return_value={
-            "LF7": {"nb_grilles": 50, "moy_1": 3.1, "moy_n": 1.9, "moy_2": 2.0},
-        }):
-            response = client.get("/api/stats/distribution")
-            assert response.status_code == 200
+        response = client.get("/api/stats/distribution")
+        assert response.status_code == 200
 
 
 # =====================================================
@@ -267,23 +215,10 @@ class TestStatsDistribution:
 # =====================================================
 
 class TestSchemaValidation:
-    def test_predict_missing_fields(self, client):
-        response = client.post("/api/predict", json={})
-        assert response.status_code == 422
-
-    def test_predict_wrong_types(self, client):
-        response = client.post("/api/predict", json={
-            "equipe_dom_id": "abc",
-            "equipe_ext_id": 2,
-            "competition_id": 1,
-            "date": "2024-01-15",
-        })
-        assert response.status_code == 422
-
     def test_generate_budget_too_high(self, client):
         matches = [
-            {"equipe_dom_id": i, "equipe_ext_id": i + 10, "competition_id": 1, "date": "2024-01-15"}
-            for i in range(1, 8)
+            {"cote_1": 1.50, "cote_n": 4.00, "cote_2": 6.00}
+            for _ in range(7)
         ]
         response = client.post("/api/grilles/generate", json={
             "matches": matches,
@@ -293,8 +228,8 @@ class TestSchemaValidation:
 
     def test_generate_budget_zero(self, client):
         matches = [
-            {"equipe_dom_id": i, "equipe_ext_id": i + 10, "competition_id": 1, "date": "2024-01-15"}
-            for i in range(1, 8)
+            {"cote_1": 1.50, "cote_n": 4.00, "cote_2": 6.00}
+            for _ in range(7)
         ]
         response = client.post("/api/grilles/generate", json={
             "matches": matches,
