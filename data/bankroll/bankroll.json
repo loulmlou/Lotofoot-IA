@@ -1,0 +1,449 @@
+{
+  "initial_bankroll": 100.0,
+  "cost_per_grid": 1.0,
+  "grids_per_draw": 5,
+  "entries": [
+    {
+      "id": "LF7-92",
+      "grid_number": 92,
+      "grid_type": "LF7",
+      "date": "2026-07-24",
+      "status": "resolved",
+      "grids_submitted": [
+        {
+          "resultats": "112111N",
+          "n_correct": 5,
+          "payout": 0.0
+        },
+        {
+          "resultats": "1N21111",
+          "n_correct": 5,
+          "payout": 0.0
+        },
+        {
+          "resultats": "1N21112",
+          "n_correct": 4,
+          "payout": 0.0
+        },
+        {
+          "resultats": "1N2111N",
+          "n_correct": 4,
+          "payout": 0.0
+        },
+        {
+          "resultats": "122111N",
+          "n_correct": 4,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 95.0,
+      "actual_results": "N121111",
+      "rapports": {
+        "7_sur_7": {
+          "gagnants": 413,
+          "montant": 101.0
+        },
+        "6_sur_7": {
+          "gagnants": 6510,
+          "montant": 7.8
+        }
+      }
+    },
+    {
+      "id": "LF12-63",
+      "grid_number": 63,
+      "grid_type": "LF12",
+      "date": "2026-07-26",
+      "status": "resolved",
+      "grids_submitted": [
+        {
+          "resultats": "N11N22111211",
+          "n_correct": 4,
+          "payout": 0.0
+        },
+        {
+          "resultats": "N1N122111211",
+          "n_correct": 5,
+          "payout": 0.0
+        },
+        {
+          "resultats": "N12N21111211",
+          "n_correct": 5,
+          "payout": 0.0
+        },
+        {
+          "resultats": "N1N221111211",
+          "n_correct": 7,
+          "payout": 0.0
+        },
+        {
+          "resultats": "N1NN22111211",
+          "n_correct": 5,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 90.0,
+      "actual_results": "2NN2N1N21211",
+      "rapports": {}
+    },
+    {
+      "id": "LF8-97",
+      "grid_number": 97,
+      "grid_type": "LF8",
+      "date": "2026-07-26",
+      "status": "resolved",
+      "grids_submitted": [
+        {
+          "resultats": "11N11122",
+          "n_correct": 4,
+          "payout": 0.0
+        },
+        {
+          "resultats": "11N11112",
+          "n_correct": 5,
+          "payout": 0.0
+        },
+        {
+          "resultats": "11N111N2",
+          "n_correct": 4,
+          "payout": 0.0
+        },
+        {
+          "resultats": "11N11222",
+          "n_correct": 3,
+          "payout": 0.0
+        },
+        {
+          "resultats": "11N11N22",
+          "n_correct": 3,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 85.0,
+      "actual_results": "1NN1N11N",
+      "rapports": {
+        "8_sur_8": {
+          "gagnants": 107,
+          "montant": 463.0
+        },
+        "7_sur_8": {
+          "gagnants": 1553,
+          "montant": 38.9
+        }
+      }
+    },
+    {
+      "id": "LF12-64",
+      "grid_number": 64,
+      "grid_type": "LF12",
+      "date": "2026-07-28",
+      "status": "resolved",
+      "grids_submitted": [
+        {
+          "resultats": "2N1111112122",
+          "n_correct": 5,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2N1111112N22",
+          "n_correct": 4,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2N111111N122",
+          "n_correct": 5,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2N111111NN22",
+          "n_correct": 4,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2N111111N12N",
+          "n_correct": 4,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 80.0,
+      "actual_results": "N1NN121111N2",
+      "rapports": {
+        "12_sur_12": {
+          "gagnants": 0,
+          "montant": 0.0
+        },
+        "11_sur_12": {
+          "gagnants": 11,
+          "montant": 0.0
+        },
+        "10_sur_12": {
+          "gagnants": 122,
+          "montant": 156.1
+        },
+        "9_sur_12": {
+          "gagnants": 985,
+          "montant": 19.3
+        }
+      }
+    },
+    {
+      "id": "LF8-99",
+      "grid_number": 99,
+      "grid_type": "LF8",
+      "date": "2026-07-31",
+      "status": "resolved",
+      "grids_submitted": [
+        {
+          "resultats": "221N2211",
+          "n_correct": 0,
+          "payout": 0.0
+        },
+        {
+          "resultats": "221N1211",
+          "n_correct": 0,
+          "payout": 0.0
+        },
+        {
+          "resultats": "22111N11",
+          "n_correct": 0,
+          "payout": 0.0
+        },
+        {
+          "resultats": "221NN211",
+          "n_correct": 0,
+          "payout": 0.0
+        },
+        {
+          "resultats": "221N1N11",
+          "n_correct": 0,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 75.0,
+      "actual_results": "N",
+      "rapports": {}
+    },
+    {
+      "id": "LF15-61",
+      "grid_number": 61,
+      "grid_type": "LF15",
+      "date": "2026-07-31",
+      "status": "resolved",
+      "grids_submitted": [
+        {
+          "resultats": "111111221N22121",
+          "n_correct": 7,
+          "payout": 0.0
+        },
+        {
+          "resultats": "112111N21N22121",
+          "n_correct": 6,
+          "payout": 0.0
+        },
+        {
+          "resultats": "111N11N21N22121",
+          "n_correct": 8,
+          "payout": 0.0
+        },
+        {
+          "resultats": "112N11N21N22121",
+          "n_correct": 7,
+          "payout": 0.0
+        },
+        {
+          "resultats": "111N11NN1N22121",
+          "n_correct": 7,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 70.0,
+      "actual_results": "1N1NN112NN1N1N1",
+      "rapports": {
+        "15_sur_15": {
+          "gagnants": 0,
+          "montant": 0.0
+        },
+        "14_sur_15": {
+          "gagnants": 5,
+          "montant": 0.0
+        },
+        "13_sur_15": {
+          "gagnants": 57,
+          "montant": 360.4
+        },
+        "12_sur_15": {
+          "gagnants": 453,
+          "montant": 45.3
+        }
+      }
+    },
+    {
+      "id": "LF7-96",
+      "grid_number": 96,
+      "grid_type": "LF7",
+      "date": "2026-08-01",
+      "status": "pending",
+      "grids_submitted": [
+        {
+          "resultats": "2112N11",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "N112111",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2212N11",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "N112N11",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2N12N11",
+          "n_correct": null,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 65.0,
+      "actual_results": "",
+      "rapports": {}
+    },
+    {
+      "id": "LF8-101",
+      "grid_number": 101,
+      "grid_type": "LF8",
+      "date": "2026-08-01",
+      "status": "pending",
+      "grids_submitted": [
+        {
+          "resultats": "1112N121",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "111NN121",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "1112N221",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "1112NN21",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "1N12N221",
+          "n_correct": null,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 60.0,
+      "actual_results": "",
+      "rapports": {}
+    },
+    {
+      "id": "LF12-65",
+      "grid_number": 65,
+      "grid_type": "LF12",
+      "date": "2026-08-01",
+      "status": "pending",
+      "grids_submitted": [
+        {
+          "resultats": "211211121N11",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2112N1121N11",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "N11211121N11",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2212N1121N11",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "2N12N1121N11",
+          "n_correct": null,
+          "payout": 0.0
+        }
+      ],
+      "cost": 5.0,
+      "total_payout": 0.0,
+      "net": -5.0,
+      "bankroll_after": 55.0,
+      "actual_results": "",
+      "rapports": {}
+    },
+    {
+      "id": "LF12-66",
+      "grid_number": 66,
+      "grid_type": "LF12",
+      "date": "2026-08-02",
+      "status": "pending",
+      "grids_submitted": [
+        {
+          "resultats": "121221N12111",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "121221N12211",
+          "n_correct": null,
+          "payout": 0.0
+        },
+        {
+          "resultats": "121221212N11",
+          "n_correct": null,
+          "payout": 0.0
+        }
+      ],
+      "cost": 3.0,
+      "total_payout": 0.0,
+      "net": -3.0,
+      "bankroll_after": 52.0,
+      "actual_results": "",
+      "rapports": {}
+    }
+  ]
+}

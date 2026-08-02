@@ -5,6 +5,7 @@ import os
 import random
 from datetime import date, datetime
 
+import numpy as np
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -325,7 +326,7 @@ st.sidebar.title("LotoFoot AI Analyst")
 page = st.sidebar.radio(
     "Navigation",
     ["Générateur de grilles", "Système réducteur", "Historique des grilles",
-     "Dashboard stats", "Suivi Bankroll", "Analyse cross-types"],
+     "Dashboard stats", "Suivi Bankroll", "Analyse cross-types", "Focus LF12"],
 )
 
 # ---------------------------------------------------------------------------
@@ -1278,3 +1279,209 @@ elif page == "Analyse cross-types":
                 st.dataframe(pd.DataFrame(stable_data), use_container_width=True, hide_index=True)
             else:
                 st.info("Pas assez de donnees pour detecter des correlations stables.")
+
+# ---------------------------------------------------------------------------
+# Page 7 — Focus LF12
+# ---------------------------------------------------------------------------
+
+elif page == "Focus LF12":
+    st.header("Focus LF12")
+    st.markdown("Exploration visuelle dédiée au LF12 : gains réels par rang, tirage par tirage.")
+
+    focus_history = load_history(grid_type="LF12")
+
+    if not focus_history:
+        st.info("Aucun historique LF12 trouvé. Lancez `python main.py scrape-history LF12`.")
+    else:
+        tier_labels = {"9_sur_12": "9/12", "10_sur_12": "10/12",
+                        "11_sur_12": "11/12", "12_sur_12": "12/12"}
+        tier_key = st.selectbox(
+            "Rang à explorer", list(tier_labels.keys()),
+            format_func=lambda k: tier_labels[k], index=1,  # 10/12 par défaut
+        )
+
+        rows = []
+        for g in focus_history:
+            tier = g.get("rapports", {}).get(tier_key)
+            if not tier:
+                continue
+            rows.append({
+                "grid_number": g.get("grid_number"),
+                "season": g.get("season", "-"),
+                "montant": tier.get("montant", 0) or 0,
+                "gagnants": tier.get("gagnants", 0) or 0,
+                "difficulty": g.get("difficulty"),
+                "moyenne_cote_fav": g.get("moyenne_cote_fav"),
+            })
+
+        df_tier = pd.DataFrame(rows).sort_values("grid_number").reset_index(drop=True)
+        df_gagnant = df_tier[df_tier["montant"] > 0]
+
+        if df_gagnant.empty:
+            st.warning(f"Aucun gain enregistré pour le rang {tier_labels[tier_key]}.")
+        else:
+            st.subheader(f"Tous les gains historiques — rang {tier_labels[tier_key]}")
+
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                st.metric("Tirages payants", f"{len(df_gagnant)}/{len(df_tier)}")
+            with col2:
+                st.metric("Gain moyen", f"{df_gagnant['montant'].mean():.2f} €")
+            with col3:
+                st.metric("Gain médian", f"{df_gagnant['montant'].median():.2f} €")
+            with col4:
+                st.metric("Gain min", f"{df_gagnant['montant'].min():.2f} €")
+            with col5:
+                st.metric("Gain max", f"{df_gagnant['montant'].max():.2f} €")
+
+            moyenne = df_gagnant["montant"].mean()
+
+            # --- Gains dans le temps ---
+            st.subheader("Gains par tirage (chronologique)")
+            fig_time = go.Figure()
+            fig_time.add_trace(go.Bar(
+                x=df_gagnant["grid_number"], y=df_gagnant["montant"],
+                marker_color="#3b82f6",
+                hovertemplate="Grille n°%{x}<br>Gain: %{y:.2f} €<extra></extra>",
+                name=tier_labels[tier_key],
+            ))
+            fig_time.add_hline(
+                y=moyenne, line_dash="dash", line_color="#94a3b8",
+                annotation_text=f"Moyenne ({moyenne:.2f} €)",
+            )
+            fig_time.update_layout(
+                xaxis_title="N° de grille", yaxis_title="Gain (€)",
+                height=400, showlegend=False,
+                bargap=0.15,
+            )
+            st.plotly_chart(fig_time, use_container_width=True)
+
+            # --- Distribution des gains ---
+            st.subheader("Distribution des gains")
+            seuils = [50, 100, 200, 500]
+
+            fig_dist = px.histogram(
+                df_gagnant, x="montant", nbins=30,
+                labels={"montant": "Gain (€)", "count": "Nombre de tirages"},
+                color_discrete_sequence=["#3b82f6"],
+            )
+            fig_dist.add_vline(
+                x=moyenne, line_dash="dash", line_color="#94a3b8",
+                annotation_text=f"Moyenne ({moyenne:.2f} €)",
+                annotation_position="top left",
+            )
+            for seuil in seuils:
+                pct_sous_seuil = (df_gagnant["montant"] < seuil).mean()
+                fig_dist.add_vline(
+                    x=seuil, line_dash="dot", line_color="#cbd5e1",
+                    annotation_text=f"< {seuil}€ : {pct_sous_seuil:.0%}",
+                    annotation_position="top",
+                    annotation_textangle=-90,
+                )
+            fig_dist.update_layout(height=400, yaxis_title="Nombre de tirages")
+            st.plotly_chart(fig_dist, use_container_width=True)
+
+            # --- Repartition par tranche ---
+            st.subheader("Répartition par tranche de gain")
+            bornes = [0] + seuils + [float("inf")]
+            tranche_labels = [
+                f"< {seuils[0]}€",
+                *[f"{seuils[i]}-{seuils[i+1]}€" for i in range(len(seuils) - 1)],
+                f"> {seuils[-1]}€",
+            ]
+            tranche_idx = pd.cut(
+                df_gagnant["montant"], bins=bornes, labels=tranche_labels, right=False,
+            )
+            tranche_counts = tranche_idx.value_counts().reindex(tranche_labels).fillna(0)
+            tranche_pct = tranche_counts / tranche_counts.sum()
+
+            fig_tranches = go.Figure(go.Bar(
+                x=tranche_labels, y=tranche_pct.values,
+                marker_color="#3b82f6",
+                text=[f"{p:.0%}" for p in tranche_pct.values],
+                textposition="outside",
+                hovertemplate="%{x}<br>%{y:.1%} des tirages payants<extra></extra>",
+            ))
+            fig_tranches.update_layout(
+                height=350, yaxis_title="Part des tirages payants",
+                yaxis_tickformat=".0%", xaxis_title="Tranche de gain",
+                showlegend=False,
+            )
+            st.plotly_chart(fig_tranches, use_container_width=True)
+
+            # --- Lien avec une metrique pre-match (reutilisable) ---
+            def _show_metric_comparison(df, metric_col, metric_label, tercile_labels):
+                dfm = df.dropna(subset=[metric_col])
+                if len(dfm) < 5:
+                    st.info(f"Pas assez de données avec « {metric_label} » renseignée pour comparer.")
+                    return
+
+                corr = dfm[metric_col].corr(dfm["montant"])
+                force = "quasi nulle" if abs(corr) < 0.2 else "faible" if abs(corr) < 0.4 else "modérée"
+                st.caption(f"Corrélation {metric_label} ↔ gain : r = {corr:+.2f} ({force})")
+
+                coeffs = np.polyfit(dfm[metric_col], dfm["montant"], 1)
+                x_trend = np.linspace(dfm[metric_col].min(), dfm[metric_col].max(), 50)
+                y_trend = coeffs[0] * x_trend + coeffs[1]
+
+                fig_scatter = go.Figure()
+                fig_scatter.add_trace(go.Scatter(
+                    x=dfm[metric_col], y=dfm["montant"],
+                    mode="markers", marker=dict(color="#3b82f6", size=7, opacity=0.65),
+                    hovertemplate=f"{metric_label}: " + "%{x:.2f}<br>Gain: %{y:.2f} €<extra></extra>",
+                ))
+                fig_scatter.add_trace(go.Scatter(
+                    x=x_trend, y=y_trend, mode="lines",
+                    line=dict(color="#94a3b8", dash="dash"), hoverinfo="skip",
+                ))
+                fig_scatter.update_layout(
+                    height=400, showlegend=False,
+                    xaxis_title=metric_label, yaxis_title="Gain (€)",
+                )
+                st.plotly_chart(fig_scatter, use_container_width=True)
+
+                dfm = dfm.copy()
+                dfm["tercile"] = pd.qcut(dfm[metric_col], 3, labels=tercile_labels)
+                tercile_stats = (
+                    dfm.groupby("tercile", observed=True)["montant"]
+                    .agg(["mean", "count"]).reset_index()
+                )
+                fig_tercile = go.Figure(go.Bar(
+                    x=tercile_stats["tercile"], y=tercile_stats["mean"],
+                    marker_color="#3b82f6",
+                    text=[f"{v:.0f}€ (n={n})" for v, n in
+                          zip(tercile_stats["mean"], tercile_stats["count"])],
+                    textposition="outside",
+                    hovertemplate="%{x}<br>Gain moyen: %{y:.2f} €<extra></extra>",
+                ))
+                fig_tercile.update_layout(
+                    height=350, showlegend=False,
+                    xaxis_title=f"{metric_label} (terciles)", yaxis_title="Gain moyen (€)",
+                )
+                st.plotly_chart(fig_tercile, use_container_width=True)
+
+            st.subheader("Lien avec la difficulté de la grille")
+            _show_metric_comparison(
+                df_gagnant, "difficulty", "Difficulté (produit des cotes favori)",
+                ["Facile", "Moyenne", "Difficile"],
+            )
+
+            st.subheader("Lien avec la moyenne des cotes favori")
+            st.caption(
+                "L'indicateur le plus corrélé au gain parmi ceux testés (r=+0.28). "
+                "Plus la moyenne est basse, plus les favoris sont dominants sur "
+                "l'ensemble de la grille (cotes proches de 1) ; plus elle est "
+                "haute, plus les favoris sont fragiles match par match."
+            )
+            _show_metric_comparison(
+                df_gagnant, "moyenne_cote_fav", "Moyenne des cotes favori",
+                ["Favoris dominants", "Intermédiaire", "Favoris fragiles"],
+            )
+
+            # --- Table detaillee ---
+            with st.expander("Table détaillée"):
+                display_df = df_gagnant[["grid_number", "season", "montant", "gagnants"]].rename(
+                    columns={"grid_number": "N° grille", "season": "Saison",
+                             "montant": "Gain (€)", "gagnants": "Nb gagnants"}
+                )
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
