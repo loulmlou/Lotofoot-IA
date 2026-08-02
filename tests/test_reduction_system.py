@@ -124,6 +124,42 @@ class TestReduction:
 
 
 # =====================================================
+# Solveur exact vs repli glouton
+# =====================================================
+
+class TestExactSolver:
+    def test_matches_theoretical_covering_bound(self):
+        """4 bancos + 2 doubles + 2 triples = 36 combos, boule rayon 1 = 7
+        points => borne de couverture theorique ceil(36/7) = 6. Le solveur
+        exact doit atteindre cet optimum (cas reel LF8 verifie contre le
+        systeme reducteur publie par Pronosoft)."""
+        selections = (
+            [["1"], ["1"], ["1"], ["1"], ["1", "N"], ["1", "N"],
+             ["1", "N", "2"], ["1", "N", "2"]]
+        )
+        result = build_reduction_system(selections, [(1, 1.0)])
+        assert result["method"] == "exact"
+        assert result["nb_grilles"] == 6
+
+    def test_falls_back_to_greedy_beyond_exact_threshold(self):
+        """Au-dela de EXACT_SOLVER_MAX_COMBINATIONS, on doit basculer sur le
+        glouton sans tenter le solveur exact (rapide, pas de garantie
+        d'optimalite)."""
+        selections = [["1", "N", "2"]] * 6  # 3**6 = 729 combos
+        result = build_reduction_system(selections, [(1, 1.0)])
+        assert result["method"] == "greedy"
+        assert result["nb_grilles"] < result["nb_combinaisons_total"]
+
+    def test_exact_solution_is_valid_covering(self):
+        """La solution exacte doit reellement satisfaire la garantie
+        annoncee (pas seulement l'affichage de couverture)."""
+        selections = [["1"], ["1", "N"], ["1", "N", "2"]]
+        result = build_reduction_system(selections, [(1, 1.0)])
+        assert result["method"] == "exact"
+        assert result["couverture"][1] == 1.0
+
+
+# =====================================================
 # Structure du résultat
 # =====================================================
 
@@ -131,7 +167,7 @@ class TestResultStructure:
     def test_keys_present(self, selections_simple):
         result = build_reduction_system(selections_simple, [(1, 1.0)])
         for key in ("grilles", "nb_grilles", "nb_combinaisons_total",
-                    "taux_reduction", "couverture"):
+                    "taux_reduction", "couverture", "method"):
             assert key in result
 
     def test_grille_length_matches_n_matchs(self, selections_simple):

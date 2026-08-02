@@ -693,9 +693,10 @@ elif page == "Système réducteur":
     red_result = None
     if not nb_matchs_incomplets and nb_combinaisons <= MAX_COMBINATIONS:
         try:
-            red_result = _cached_reduction_system(
-                tuple(tuple(s) for s in selections), tuple(guarantees),
-            )
+            with st.spinner("Calcul du système réducteur..."):
+                red_result = _cached_reduction_system(
+                    tuple(tuple(s) for s in selections), tuple(guarantees),
+                )
         except ValueError as e:
             st.error(str(e))
 
@@ -709,9 +710,14 @@ elif page == "Système réducteur":
         st.metric("Coût", cout)
 
     if red_result:
+        methode_label = (
+            "solution optimale prouvée" if red_result["method"] == "exact"
+            else "solution approchée (heuristique)"
+        )
         st.caption(
             f"Multiple complète : {red_result['nb_combinaisons_total']} "
-            f"combinaisons — réduction de {red_result['taux_reduction']:.0%}"
+            f"combinaisons — réduction de {red_result['taux_reduction']:.0%} "
+            f"— {methode_label}"
         )
 
         couverture_rows = [
